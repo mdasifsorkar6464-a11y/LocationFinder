@@ -4,65 +4,71 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import android.view.ViewGroup
-import android.view.Gravity
-import android.graphics.Color
-import android.util.TypedValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 class MainActivity : Activity() {
+
     private val requestCode = 100
+    private var pendingShare = false
     private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(32, 32, 32, 32)
-        }
+        val layout = LinearLayout(this)
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(40, 60, 40, 40)
 
-        val title = TextView(this).apply {
-            text = "Location Finder"
-            textSize = 26f
-            setTextColor(Color.BLACK)
-            gravity = Gravity.CENTER
-        }
-
-        status = TextView(this).apply {
-            text = "নিজের অবস্থান জানতে নিচের বাটনে চাপ দিন"
-            textSize = 16f
-            gravity = Gravity.CENTER
-            setPadding(0, 30, 0, 30)
-        }
-
-        val button = Button(this).apply {
-            text = "আমার অবস্থান শেয়ার করুন"
-            setOnClickListener { shareLocation() }
-        }
-
+        val title = TextView(this)
+        title.text = "Location Finder - Family Safety"
+        title.textSize = 22f
         layout.addView(title)
+
+        status = TextView(this)
+        status.text = "আপনার লোকেশন দেখতে নিচের বাটনে চাপ দিন।"
+        status.textSize = 16f
         layout.addView(status)
+
+        val button = Button(this)
+        button.text = "আমার লোকেশন দেখুন"
         layout.addView(button)
+
+        val shareButton = Button(this)
+        shareButton.text = "লোকেশন শেয়ার করুন"
+        layout.addView(shareButton)
+
         setContentView(layout)
+
+        button.setOnClickListener {
+            getLocation(false)
+        }
+
+        shareButton.setOnClickListener {
+            getLocation(true)
+        }
     }
 
-    private fun shareLocation() {
-        if (ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+    private fun getLocation(share: Boolean) {
+        pendingShare = share
+
+        val fine = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val coarse = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fine && !coarse) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(
@@ -76,22 +82,47 @@ class MainActivity : Activity() {
 
         try {
             val manager = getSystemService(LOCATION_SERVICE) as LocationManager
-            val location = manager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+            var location: Location? = null
+
+            for (provider in manager.allProviders) {
+                try {
+                    location = manager.getLastKnownLocation(provider)
+                    if (location != null) break
+                } catch (_: Exception) {
+                }
+            }
 
             if (location == null) {
-                status.text = "অবস্থান পাওয়া যায়নি। GPS চালু করে আবার চেষ্টা করুন।"
+                status.text = "লোকেশন পাওয়া যায়নি। GPS চালু করুন।"
+                Toast.makeText(
+                    this,
+                    "GPS চালু করে আবার চেষ্টা করুন।",
+                    Toast.LENGTH_LONG
+                ).show()
                 return
             }
 
-            val link = "https://maps.google.com/?q=${location.latitude},${location.longitude}"
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, "আমার অবস্থান: $link")
+            val url = "https://maps.google.com/?q=${location.latitude},${location.longitude}"
+
+            status.text = "লোকেশন পাওয়া গেছে।"
+
+            if (share) {
+                val intent = Intent(Intent.ACTION_SEND)
+                intent.type = "text/plain"
+                intent.putExtra(Intent.EXTRA_TEXT, "আমার লোকেশন: $url")
+                startActivity(Intent.createChooser(intent, "লোকেশন শেয়ার করুন"))
+            } else {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
             }
-            startActivity(Intent.createChooser(intent, "অবস্থান শেয়ার করুন"))
-        } catch (e: SecurityException) {
-            status.text = "অবস্থানের অনুমতি পাওয়া যায়নি।"
+
+        } catch (e: Exception) {
+            status.text = "লোকেশন পেতে সমস্যা হয়েছে।"
+            Toast.makeText(
+                this,
+                "আবার চেষ্টা করুন।",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -101,12 +132,17 @@ class MainActivity : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
         if (requestCode == this.requestCode &&
             grantResults.any { it == PackageManager.PERMISSION_GRANTED }
         ) {
-            shareLocation()
+            getLocation(pendingShare)
         } else {
-            Toast.makeText(this, "অবস্থানের অনুমতি প্রয়োজন", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "লোকেশন অনুমতি দেওয়া হয়নি।",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 }
