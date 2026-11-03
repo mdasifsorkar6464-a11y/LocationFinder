@@ -1,11 +1,10 @@
+
 package com.asif.locationfinder
 
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
@@ -14,11 +13,16 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 
 class MainActivity : Activity() {
 
     private lateinit var status: TextView
     private val requestCode = 100
+    private val fusedClient by lazy {
+        LocationServices.getFusedLocationProviderClient(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,7 +37,7 @@ class MainActivity : Activity() {
         layout.addView(title)
 
         status = TextView(this)
-        status.text = "আপনার লোকেশন দেখতে বাটনে চাপ দিন।"
+        status.text = "আপনার বর্তমান লোকেশন দেখতে নিচের বাটনে চাপ দিন।"
         status.textSize = 18f
         layout.addView(status)
 
@@ -49,16 +53,15 @@ class MainActivity : Activity() {
     }
 
     private fun getLocation() {
-        if (
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+        val fine = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val coarse = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fine && !coarse) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(
@@ -70,41 +73,32 @@ class MainActivity : Activity() {
             return
         }
 
+        status.text = "বর্তমান লোকেশন খোঁজা হচ্ছে..."
+
         try {
-            val manager = getSystemService(LOCATION_SERVICE) as LocationManager
-            val providers = manager.getProviders(true)
-
-            var location: Location? = null
-
-            for (provider in providers) {
-                val found = manager.getLastKnownLocation(provider)
-                if (found != null &&
-                    (location == null ||
-                    found.time > location.time)
-                ) {
-                    location = found
+            fusedClient.getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY,
+                null
+            ).addOnSuccessListener { location ->
+                if (location == null) {
+                    status.text = "লোকেশন পাওয়া যায়নি। আবার চেষ্টা করুন।"
+                    return@addOnSuccessListener
                 }
+
+                val lat = location.latitude
+                val lon = location.longitude
+
+                status.text = "আপনার লোকেশন:\n$lat\n$lon"
+
+                val url = "https://maps.google.com/?q=$lat,$lon"
+                startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                )
+            }.addOnFailureListener {
+                status.text = "লোকেশন পেতে সমস্যা হয়েছে। আবার চেষ্টা করুন।"
             }
-
-            if (location == null) {
-                status.text = "লোকেশন পাওয়া যায়নি। GPS চালু করে আবার চেষ্টা করুন।"
-                return
-            }
-
-            val lat = location.latitude
-            val lon = location.longitude
-
-            status.text = "Latitude: $lat\nLongitude: $lon"
-
-            val mapUrl = "https://maps.google.com/?q=$lat,$lon"
-            startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(mapUrl))
-            )
-
         } catch (e: SecurityException) {
             status.text = "লোকেশন অনুমতি পাওয়া যায়নি।"
-        } catch (e: Exception) {
-            status.text = "লোকেশন পেতে সমস্যা হয়েছে।"
         }
     }
 
@@ -118,9 +112,7 @@ class MainActivity : Activity() {
         )
 
         if (requestCode == this.requestCode &&
-            grantResults.any {
-                it == PackageManager.PERMISSION_GRANTED
-            }
+            grantResults.any { it == PackageManager.PERMISSION_GRANTED }
         ) {
             getLocation()
         } else {
