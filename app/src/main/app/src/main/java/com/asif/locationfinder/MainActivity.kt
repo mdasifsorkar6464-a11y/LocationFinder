@@ -1,26 +1,12 @@
 package com.asif.locationfinder
 
-import android.Manifest
 import android.app.Activity
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationManager
-import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 
 class MainActivity : Activity() {
-
-    private val requestCode = 100
-    private var pendingShare = false
-    private lateinit var status: TextView
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -33,9 +19,8 @@ class MainActivity : Activity() {
         title.textSize = 22f
         layout.addView(title)
 
-        status = TextView(this)
+        val status = TextView(this)
         status.text = "আপনার লোকেশন দেখতে নিচের বাটনে চাপ দিন।"
-        status.textSize = 16f
         layout.addView(status)
 
         val button = Button(this)
@@ -49,100 +34,11 @@ class MainActivity : Activity() {
         setContentView(layout)
 
         button.setOnClickListener {
-            getLocation(false)
+            status.text = "লোকেশন ফিচার পরবর্তী ধাপে যুক্ত করা হবে।"
         }
 
         shareButton.setOnClickListener {
-            getLocation(true)
-        }
-    }
-
-    private fun getLocation(share: Boolean) {
-        pendingShare = share
-
-        val fine = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val coarse = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!fine && !coarse) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ),
-                requestCode
-            )
-            return
-        }
-
-        try {
-            val manager = getSystemService(LOCATION_SERVICE) as LocationManager
-
-            var location: Location? = null
-
-            for (provider in manager.allProviders) {
-                try {
-                    location = manager.getLastKnownLocation(provider)
-                    if (location != null) break
-                } catch (_: Exception) {
-                }
-            }
-
-            if (location == null) {
-                status.text = "লোকেশন পাওয়া যায়নি। GPS চালু করুন।"
-                Toast.makeText(
-                    this,
-                    "GPS চালু করে আবার চেষ্টা করুন।",
-                    Toast.LENGTH_LONG
-                ).show()
-                return
-            }
-
-            val url = "https://maps.google.com/?q=${location.latitude},${location.longitude}"
-
-            status.text = "লোকেশন পাওয়া গেছে।"
-
-            if (share) {
-                val intent = Intent(Intent.ACTION_SEND)
-                intent.type = "text/plain"
-                intent.putExtra(Intent.EXTRA_TEXT, "আমার লোকেশন: $url")
-                startActivity(Intent.createChooser(intent, "লোকেশন শেয়ার করুন"))
-            } else {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            }
-
-        } catch (e: Exception) {
-            status.text = "লোকেশন পেতে সমস্যা হয়েছে।"
-            Toast.makeText(
-                this,
-                "আবার চেষ্টা করুন।",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode == this.requestCode &&
-            grantResults.any { it == PackageManager.PERMISSION_GRANTED }
-        ) {
-            getLocation(pendingShare)
-        } else {
-            Toast.makeText(
-                this,
-                "লোকেশন অনুমতি দেওয়া হয়নি।",
-                Toast.LENGTH_LONG
-            ).show()
+            status.text = "শেয়ার ফিচার পরবর্তী ধাপে যুক্ত করা হবে।"
         }
     }
 }
