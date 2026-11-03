@@ -1,0 +1,109 @@
+package com.asif.locationfinder
+
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.LocationManager
+import android.os.Bundle
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+
+class MainActivity : Activity() {
+
+    private val requestCode = 100
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val layout = LinearLayout(this)
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(40, 60, 40, 40)
+
+        val title = TextView(this)
+        title.text = "Location Finder - Family Safety"
+        title.textSize = 22f
+        layout.addView(title)
+
+        val button = Button(this)
+        button.text = "আমার লোকেশন দেখুন"
+        layout.addView(button)
+
+        val shareButton = Button(this)
+        shareButton.text = "লোকেশন শেয়ার করুন"
+        layout.addView(shareButton)
+
+        setContentView(layout)
+
+        button.setOnClickListener {
+            getLocation()
+        }
+
+        shareButton.setOnClickListener {
+            getLocation(true)
+        }
+    }
+
+    private fun getLocation(share: Boolean = false) {
+        if (
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                requestCode
+            )
+            return
+        }
+
+        val manager = getSystemService(LOCATION_SERVICE) as LocationManager
+
+        val location = try {
+            manager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        } catch (e: Exception) {
+            null
+        }
+
+        if (location == null) {
+            Toast.makeText(this, "লোকেশন পাওয়া যায়নি। GPS চালু করুন।", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val url = "https://maps.google.com/?q=${location.latitude},${location.longitude}"
+
+        if (share) {
+            val intent = Intent(Intent.ACTION_SEND)
+            intent.type = "text/plain"
+            intent.putExtra(Intent.EXTRA_TEXT, "আমার লোকেশন: $url")
+            startActivity(Intent.createChooser(intent, "লোকেশন শেয়ার করুন"))
+        } else {
+            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == this.requestCode &&
+            grantResults.isNotEmpty() &&
+            grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+        ) {
+            getLocation()
+        }
+    }
+}
