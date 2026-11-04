@@ -18,6 +18,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -46,6 +47,7 @@ class MainActivity : Activity() {
     private var pendingSessionId: String? = null
     private var sessionListener: ValueEventListener? = null
     private var locationListener: ValueEventListener? = null
+    private var currentLocationRef: DatabaseReference? = null
     private var currentSessionId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -392,6 +394,7 @@ class MainActivity : Activity() {
     private fun listenForOtherLocation(sessionId: String, otherUid: String) {
         locationListener?.let { database.child("sessions").child(sessionId).child("locations").child(otherUid).removeEventListener(it) }
         val ref = database.child("sessions").child(sessionId).child("locations").child(otherUid)
+        currentLocationRef = ref
         locationListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val lat = snapshot.child("latitude").getValue(Double::class.java)
@@ -480,10 +483,11 @@ class MainActivity : Activity() {
     private fun removeSessionListeners() {
         currentSessionId?.let { id ->
             sessionListener?.let { database.child("sessions").child(id).removeEventListener(it) }
-            locationListener?.let { /* listener is removed when a new session screen is opened */ }
+            locationListener?.let { listener -> currentLocationRef?.removeEventListener(listener) }
         }
         sessionListener = null
         locationListener = null
+        currentLocationRef = null
         currentSessionId = null
         addedButtons.clear()
     }
