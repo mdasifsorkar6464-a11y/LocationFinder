@@ -26,6 +26,9 @@ jobs:
           gradle-version: '8.9'
           cache-disabled: true
 
+      - name: Generate SHA fingerprints
+        run: gradle :app:signingReport --no-daemon
+
       - name: Build APK
         run: gradle assembleDebug --no-daemon
 
