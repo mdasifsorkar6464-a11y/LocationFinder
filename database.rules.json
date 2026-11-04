@@ -16,7 +16,7 @@
           ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == auth.uid)"
         },
         "userB": {
-          ".validate": "newData.val() == data.val() || (newData.val() == auth.uid && auth.uid != data.parent().child('userA').val() && root.child('invites').child(data.parent().child('inviteCode').val()).child('status').val() == 'pending')"
+          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == '') || (newData.val() == auth.uid && auth.uid != data.parent().child('userA').val() && root.child('invites').child(data.parent().child('inviteCode').val()).child('status').val() == 'pending')"
         },
         "inviteCode": {
           ".validate": "newData.val() == data.val() || (!data.exists() && newData.isString())"
@@ -25,16 +25,16 @@
           ".validate": "newData.val() == data.val() || (!data.exists() && newData.isNumber())"
         },
         "consentA": {
-          ".validate": "newData.val() == data.val() || auth.uid == data.parent().child('userA').val()"
+          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == false) || auth.uid == newData.parent().child('userA').val()"
         },
         "consentB": {
-          ".validate": "newData.val() == data.val() || auth.uid == data.parent().child('userB').val()"
+          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == false) || auth.uid == newData.parent().child('userB').val()"
         },
         "active": {
           ".validate": "newData.val() == (newData.parent().child('consentA').val() == true && newData.parent().child('consentB').val() == true && newData.parent().child('userB').val() != '' && newData.parent().child('stopped').val() != true)"
         },
         "stopped": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == false && auth.uid == data.parent().child('userA').val()) || (newData.val() == true && (auth.uid == data.parent().child('userA').val() || auth.uid == data.parent().child('userB').val()))"
+          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == false) || (newData.val() == true && (auth.uid == newData.parent().child('userA').val() || auth.uid == newData.parent().child('userB').val()))"
         },
         "locations": {
           "$uid": {
