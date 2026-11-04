@@ -3,9 +3,11 @@ package com.asif.locationfinder
 
 import android.Manifest
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
@@ -19,7 +21,14 @@ import com.google.android.gms.location.Priority
 class MainActivity : Activity() {
 
     private lateinit var status: TextView
+    private lateinit var copyButton: Button
+    private lateinit var shareButton: Button
+
+    private var latitude: Double? = null
+    private var longitude: Double? = null
+
     private val requestCode = 100
+
     private val fusedClient by lazy {
         LocationServices.getFusedLocationProviderClient(this)
     }
@@ -33,7 +42,7 @@ class MainActivity : Activity() {
 
         val title = TextView(this)
         title.text = "Location Finder"
-        title.textSize = 24f
+        title.textSize = 26f
         layout.addView(title)
 
         status = TextView(this)
@@ -41,27 +50,44 @@ class MainActivity : Activity() {
         status.textSize = 18f
         layout.addView(status)
 
-        val button = Button(this)
-        button.text = "আমার লোকেশন দেখুন"
-        layout.addView(button)
+        val locationButton = Button(this)
+        locationButton.text = "আমার লোকেশন দেখুন"
+        layout.addView(locationButton)
 
-        button.setOnClickListener {
+        copyButton = Button(this)
+        copyButton.text = "লোকেশন কপি করুন"
+        copyButton.isEnabled = false
+        layout.addView(copyButton)
+
+        shareButton = Button(this)
+        shareButton.text = "লোকেশন শেয়ার করুন"
+        shareButton.isEnabled = false
+        layout.addView(shareButton)
+
+        locationButton.setOnClickListener {
             getLocation()
+        }
+
+        copyButton.setOnClickListener {
+            copyLocation()
+        }
+
+        shareButton.setOnClickListener {
+            shareLocation()
         }
 
         setContentView(layout)
     }
 
     private fun getLocation() {
-        val fine = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val coarse = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!fine && !coarse) {
+        if (
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(
@@ -73,27 +99,30 @@ class MainActivity : Activity() {
             return
         }
 
-        status.text = "বর্তমান লোকেশন খোঁজা হচ্ছে..."
+        status.text = "আপনার লোকেশন খোঁজা হচ্ছে..."
+        copyButton.isEnabled = false
+        shareButton.isEnabled = false
 
         try {
             fusedClient.getCurrentLocation(
                 Priority.PRIORITY_HIGH_ACCURACY,
                 null
             ).addOnSuccessListener { location ->
+
                 if (location == null) {
                     status.text = "লোকেশন পাওয়া যায়নি। আবার চেষ্টা করুন।"
                     return@addOnSuccessListener
                 }
 
-                val lat = location.latitude
-                val lon = location.longitude
+                latitude = location.latitude
+                longitude = location.longitude
 
-                status.text = "আপনার লোকেশন:\n$lat\n$lon"
+                status.text =
+                    "আপনার বর্তমান লোকেশন:\n\nঅক্ষাংশ: $latitude\nদ্রাঘিমাংশ: $longitude"
 
-                val url = "https://maps.google.com/?q=$lat,$lon"
-                startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                )
+                copyButton.isEnabled = true
+                shareButton.isEnabled = true
+
             }.addOnFailureListener {
                 status.text = "লোকেশন পেতে সমস্যা হয়েছে। আবার চেষ্টা করুন।"
             }
@@ -102,14 +131,44 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun getLocationText(): String {
+        val lat = latitude ?: return ""
+        val lon = longitude ?: return ""
+        val mapUrl = "https://maps.google.com/?q=$lat,$lon"
+
+        return "আমার বর্তমান লোকেশন:\nঅক্ষাংশ: $lat\nদ্রাঘিমাংশ: $lon\nGoogle Maps: $mapUrl"
+    }
+
+    private fun copyLocation() {
+        if (latitude == null || longitude == null) return
+
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE)
+                as ClipboardManager
+
+        clipboard.setPrimaryClip(
+            ClipData.newPlainText("আমার লোকেশন", getLocationText())
+        )
+
+        Toast.makeText(this, "লোকেশন কপি হয়েছে", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun shareLocation() {
+        if (latitude == null || longitude == null) return
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, getLocationText())
+        }
+
+        startActivity(Intent.createChooser(intent, "লোকেশন শেয়ার করুন"))
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
-        super.onRequestPermissionsResult(
-            requestCode, permissions, grantResults
-        )
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         if (requestCode == this.requestCode &&
             grantResults.any { it == PackageManager.PERMISSION_GRANTED }
