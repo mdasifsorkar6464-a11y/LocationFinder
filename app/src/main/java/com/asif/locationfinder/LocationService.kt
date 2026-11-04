@@ -36,7 +36,7 @@ class LocationService : Service() {
     private var sessionId: String? = null
     private var uid: String? = null
     private var locationStarted = false
-    private var serviceStopped = false
+    private var ending = false
 
     override fun onCreate() {
         super.onCreate()
@@ -63,10 +63,14 @@ class LocationService : Service() {
             return START_NOT_STICKY
         }
 
+        if (sessionId == id && sessionListener != null) {
+            return START_NOT_STICKY
+        }
+
         sessionId = id
         uid = FirebaseAuth.getInstance().currentUser?.uid
 
-        if (uid == null) {
+        if (uid.isNullOrBlank()) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -78,7 +82,7 @@ class LocationService : Service() {
 
         startForeground(
             NOTIFICATION_ID,
-            createNotification()
+            createNotification("আমন্ত্রণের সম্মতির অপেক্ষায়")
         )
 
         sessionRef = database.getReference("sessions").child(id)
@@ -108,9 +112,14 @@ class LocationService : Service() {
 
             override fun onDataChange(snapshot: DataSnapshot) {
 
-                if (serviceStopped) return
+                if (ending) return
 
                 val currentUid = uid ?: return
+
+                if (!snapshot.exists()) {
+                    endService()
+                    return
+                }
 
                 val userA = snapshot.child("userA")
                     .getValue(String::class.java)
@@ -133,26 +142,28 @@ class LocationService : Service() {
                 val isMember = currentUid == userA ||
                         currentUid == userB
 
-                if (
-                    snapshot.exists() &&
-                    isMember &&
-                    userA != null &&
+                if (!isMember || stopped) {
+                    endService()
+                    return
+                }
+
+                val bothConsented =
+                    !userA.isNullOrBlank() &&
                     !userB.isNullOrBlank() &&
                     consentA &&
-                    consentB &&
-                    active &&
-                    !stopped
-                ) {
+                    consentB
+
+                if (active && bothConsented) {
                     startLocationUpdates()
+                    updateNotification("আপনার লোকেশন শেয়ার হচ্ছে")
                 } else {
                     stopLocationUpdates()
-                    stopServicePermanently()
+                    updateNotification("অন্য ব্যক্তির সম্মতির অপেক্ষায়")
                 }
             }
 
             override fun onCancelled(error: DatabaseError) {
-                stopLocationUpdates()
-                stopServicePermanently()
+                endService()
             }
         }
 
@@ -161,10 +172,10 @@ class LocationService : Service() {
 
     private fun startLocationUpdates() {
 
-        if (locationStarted || serviceStopped) return
+        if (locationStarted || ending) return
 
         if (!hasLocationPermission()) {
-            stopServicePermanently()
+            endService()
             return
         }
 
@@ -189,7 +200,7 @@ class LocationService : Service() {
 
             override fun onLocationResult(result: LocationResult) {
 
-                if (serviceStopped) return
+                if (ending) return
 
                 val location = result.lastLocation ?: return
 
@@ -209,14 +220,13 @@ class LocationService : Service() {
                 locationCallback!!,
                 mainLooper
             ).addOnFailureListener {
-                stopLocationUpdates()
-                stopServicePermanently()
+                endService()
             }
 
             locationStarted = true
 
         } catch (e: SecurityException) {
-            stopServicePermanently()
+            endService()
         }
     }
 
@@ -230,12 +240,18 @@ class LocationService : Service() {
         locationStarted = false
     }
 
-    private fun stopServicePermanently() {
+    private fun endService() {
 
-        if (serviceStopped) return
+        if (ending) return
 
-        serviceStopped = true
+        ending = true
         stopLocationUpdates()
+
+        if (::sessionRef.isInitialized && sessionListener != null) {
+            sessionRef.removeEventListener(sessionListener!!)
+            sessionListener = null
+        }
+
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -250,27 +266,27 @@ class LocationService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             )
 
-            val manager = getSystemService(
-                NotificationManager::class.java
-            )
-
-            manager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
         }
     }
 
-    private fun createNotification(): Notification {
-
+    private fun createNotification(status: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Location Finder")
-            .setContentText("আপনার লোকেশন শেয়ারিং চালু আছে")
+            .setContentText(status)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .build()
     }
 
-    override fun onDestroy() {
+    private fun updateNotification(status: String) {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, createNotification(status))
+    }
 
-        serviceStopped = true
+    override fun onDestroy() {
+        ending = true
         stopLocationUpdates()
 
         if (::sessionRef.isInitialized && sessionListener != null) {
