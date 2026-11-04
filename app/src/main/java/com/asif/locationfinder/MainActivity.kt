@@ -8,6 +8,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
@@ -23,6 +24,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var copyButton: Button
     private lateinit var shareButton: Button
+    private lateinit var mapsButton: Button
 
     private var latitude: Double? = null
     private var longitude: Double? = null
@@ -64,6 +66,11 @@ class MainActivity : Activity() {
         shareButton.isEnabled = false
         layout.addView(shareButton)
 
+        mapsButton = Button(this)
+        mapsButton.text = "Google Maps-এ দেখুন"
+        mapsButton.isEnabled = false
+        layout.addView(mapsButton)
+
         locationButton.setOnClickListener {
             getLocation()
         }
@@ -74,6 +81,10 @@ class MainActivity : Activity() {
 
         shareButton.setOnClickListener {
             shareLocation()
+        }
+
+        mapsButton.setOnClickListener {
+            openGoogleMaps()
         }
 
         setContentView(layout)
@@ -102,6 +113,7 @@ class MainActivity : Activity() {
         status.text = "আপনার লোকেশন খোঁজা হচ্ছে..."
         copyButton.isEnabled = false
         shareButton.isEnabled = false
+        mapsButton.isEnabled = false
 
         try {
             fusedClient.getCurrentLocation(
@@ -122,6 +134,7 @@ class MainActivity : Activity() {
 
                 copyButton.isEnabled = true
                 shareButton.isEnabled = true
+                mapsButton.isEnabled = true
 
             }.addOnFailureListener {
                 status.text = "লোকেশন পেতে সমস্যা হয়েছে। আবার চেষ্টা করুন।"
@@ -161,6 +174,15 @@ class MainActivity : Activity() {
         }
 
         startActivity(Intent.createChooser(intent, "লোকেশন শেয়ার করুন"))
+    }
+
+    private fun openGoogleMaps() {
+        val lat = latitude ?: return
+        val lon = longitude ?: return
+
+        val url = "https://maps.google.com/?q=$lat,$lon"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        startActivity(intent)
     }
 
     override fun onRequestPermissionsResult(
