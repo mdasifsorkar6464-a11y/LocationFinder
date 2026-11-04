@@ -30,14 +30,17 @@ class LocationService : Service() {
     private lateinit var sessionRef: DatabaseReference
     private lateinit var locationRef: DatabaseReference
 
-    private var locationCallback: LocationCallback? = null
     private var sessionListener: ValueEventListener? = null
+    private var locationCallback: LocationCallback? = null
+
     private var sessionId: String? = null
     private var uid: String? = null
     private var locationStarted = false
+    private var serviceStopped = false
 
     override fun onCreate() {
         super.onCreate()
+
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
 
         database = FirebaseDatabase.getInstance(
@@ -68,6 +71,11 @@ class LocationService : Service() {
             return START_NOT_STICKY
         }
 
+        if (!hasLocationPermission()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         startForeground(
             NOTIFICATION_ID,
             createNotification()
@@ -75,15 +83,32 @@ class LocationService : Service() {
 
         sessionRef = database.getReference("sessions").child(id)
 
-        listenForConsent()
+        listenForSession()
 
         return START_NOT_STICKY
     }
 
-    private fun listenForConsent() {
+    private fun hasLocationPermission(): Boolean {
+        val fine = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val coarse = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        return fine || coarse
+    }
+
+    private fun listenForSession() {
+
         sessionListener = object : ValueEventListener {
 
             override fun onDataChange(snapshot: DataSnapshot) {
+
+                if (serviceStopped) return
 
                 val currentUid = uid ?: return
 
@@ -102,20 +127,32 @@ class LocationService : Service() {
                 val active = snapshot.child("active")
                     .getValue(Boolean::class.java) ?: false
 
+                val stopped = snapshot.child("stopped")
+                    .getValue(Boolean::class.java) ?: false
+
                 val isMember = currentUid == userA ||
                         currentUid == userB
 
-                if (active && consentA && consentB && isMember) {
+                if (
+                    snapshot.exists() &&
+                    isMember &&
+                    userA != null &&
+                    !userB.isNullOrBlank() &&
+                    consentA &&
+                    consentB &&
+                    active &&
+                    !stopped
+                ) {
                     startLocationUpdates()
                 } else {
                     stopLocationUpdates()
-                    stopSelf()
+                    stopServicePermanently()
                 }
             }
 
             override fun onCancelled(error: DatabaseError) {
                 stopLocationUpdates()
-                stopSelf()
+                stopServicePermanently()
             }
         }
 
@@ -124,20 +161,10 @@ class LocationService : Service() {
 
     private fun startLocationUpdates() {
 
-        if (locationStarted) return
+        if (locationStarted || serviceStopped) return
 
-        val fineGranted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val coarseGranted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!fineGranted && !coarseGranted) {
-            stopSelf()
+        if (!hasLocationPermission()) {
+            stopServicePermanently()
             return
         }
 
@@ -153,12 +180,16 @@ class LocationService : Service() {
             Priority.PRIORITY_HIGH_ACCURACY,
             TimeUnit.SECONDS.toMillis(10)
         )
-            .setMinUpdateIntervalMillis(TimeUnit.SECONDS.toMillis(5))
+            .setMinUpdateIntervalMillis(
+                TimeUnit.SECONDS.toMillis(5)
+            )
             .build()
 
         locationCallback = object : LocationCallback() {
 
             override fun onLocationResult(result: LocationResult) {
+
+                if (serviceStopped) return
 
                 val location = result.lastLocation ?: return
 
@@ -177,12 +208,15 @@ class LocationService : Service() {
                 request,
                 locationCallback!!,
                 mainLooper
-            )
+            ).addOnFailureListener {
+                stopLocationUpdates()
+                stopServicePermanently()
+            }
 
             locationStarted = true
 
         } catch (e: SecurityException) {
-            stopSelf()
+            stopServicePermanently()
         }
     }
 
@@ -194,6 +228,16 @@ class LocationService : Service() {
 
         locationCallback = null
         locationStarted = false
+    }
+
+    private fun stopServicePermanently() {
+
+        if (serviceStopped) return
+
+        serviceStopped = true
+        stopLocationUpdates()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun createNotificationChannel() {
@@ -226,6 +270,7 @@ class LocationService : Service() {
 
     override fun onDestroy() {
 
+        serviceStopped = true
         stopLocationUpdates()
 
         if (::sessionRef.isInitialized && sessionListener != null) {
