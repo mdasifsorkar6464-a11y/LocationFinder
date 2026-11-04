@@ -38,7 +38,7 @@
         },
         "locations": {
           "$uid": {
-            ".read": "auth != null && data.parent().parent().child('active').val() == true && (auth.uid == data.parent().parent().child('userA').val() || auth.uid == data.parent().parent().child('userB').val())",
+            ".read": "auth != null && root.child('sessions').child($sessionId).child('active').val() == true && (auth.uid == root.child('sessions').child($sessionId).child('userA').val() || auth.uid == root.child('sessions').child($sessionId).child('userB').val())",
             ".write": "auth != null && auth.uid == $uid && data.parent().parent().child('active').val() == true && (auth.uid == data.parent().parent().child('userA').val() || auth.uid == data.parent().parent().child('userB').val())"
           }
         }
