@@ -239,6 +239,16 @@ class MainActivity : Activity() {
     private fun showCreatedInvitation(sessionId: String, code: String) {
         setupLayout("আমন্ত্রণ তৈরি হয়েছে")
         message.text = "আমন্ত্রণ কোড:\n$code\n\nএই কোডটি নির্দিষ্ট ব্যক্তিকে পাঠান। কোড পাওয়া মানেই লোকেশন শেয়ার শুরু নয়। আপনি নিজে সম্মতি না দেওয়া এবং অপর ব্যক্তি কোড গ্রহণ করে সম্মতি না দেওয়া পর্যন্ত লোকেশন বন্ধ থাকবে।"
+        addButton("কোডটি শেয়ার করুন") {
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(
+                    Intent.EXTRA_TEXT,
+                    "Location Finder আমন্ত্রণ কোড: $code\nঅ্যাপে কোডটি লিখে আমন্ত্রণ গ্রহণ করুন। আপনার স্পষ্ট সম্মতি ছাড়া কোনো লাইভ লোকেশন শেয়ার হবে না।"
+                )
+            }
+            startActivity(Intent.createChooser(send, "আমন্ত্রণ পাঠান"))
+        }
         addButton("আমি লোকেশন শেয়ার করতে সম্মতি দিচ্ছি") {
             confirm("আপনি কি নিজের লাইভ লোকেশন এই ব্যক্তির সঙ্গে শেয়ার করতে সম্মত?") {
                 giveConsent(sessionId, true)
