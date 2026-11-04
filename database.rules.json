@@ -1,0 +1,48 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "invites": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((!data.exists() && newData.child('createdBy').val() == auth.uid && newData.child('status').val() == 'pending') || (data.exists() && data.child('status').val() == 'pending' && newData.child('status').val() == 'accepted' && root.child('sessions').child(data.child('sessionId').val()).child('userB').val() == auth.uid))"
+      }
+    },
+    "sessions": {
+      "$sessionId": {
+        ".read": "auth != null && (data.child('userA').val() == auth.uid || data.child('userB').val() == auth.uid || (data.child('userB').val() == '' && root.child('invites').child(data.child('inviteCode').val()).child('status').val() == 'pending' && root.child('invites').child(data.child('inviteCode').val()).child('createdBy').val() == data.child('userA').val()))",
+        ".write": "auth != null && ((!data.exists() && newData.child('userA').val() == auth.uid) || data.child('userA').val() == auth.uid || data.child('userB').val() == auth.uid || (data.child('userB').val() == '' && root.child('invites').child(data.child('inviteCode').val()).child('status').val() == 'pending' && root.child('invites').child(data.child('inviteCode').val()).child('createdBy').val() == data.child('userA').val()))",
+        "userA": {
+          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == auth.uid)"
+        },
+        "userB": {
+          ".validate": "newData.val() == data.val() || (newData.val() == auth.uid && auth.uid != data.parent().child('userA').val() && root.child('invites').child(data.parent().child('inviteCode').val()).child('status').val() == 'pending')"
+        },
+        "inviteCode": {
+          ".validate": "newData.val() == data.val() || (!data.exists() && newData.isString())"
+        },
+        "createdAt": {
+          ".validate": "newData.val() == data.val() || (!data.exists() && newData.isNumber())"
+        },
+        "consentA": {
+          ".validate": "newData.val() == data.val() || auth.uid == data.parent().child('userA').val()"
+        },
+        "consentB": {
+          ".validate": "newData.val() == data.val() || auth.uid == data.parent().child('userB').val()"
+        },
+        "active": {
+          ".validate": "newData.val() == (newData.parent().child('consentA').val() == true && newData.parent().child('consentB').val() == true && newData.parent().child('userB').val() != '' && newData.parent().child('stopped').val() != true)"
+        },
+        "stopped": {
+          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == false && auth.uid == data.parent().child('userA').val()) || (newData.val() == true && (auth.uid == data.parent().child('userA').val() || auth.uid == data.parent().child('userB').val()))"
+        },
+        "locations": {
+          "$uid": {
+            ".read": "auth != null && data.parent().parent().child('active').val() == true && (auth.uid == data.parent().parent().child('userA').val() || auth.uid == data.parent().parent().child('userB').val())",
+            ".write": "auth != null && auth.uid == $uid && data.parent().parent().child('active').val() == true && (auth.uid == data.parent().parent().child('userA').val() || auth.uid == data.parent().parent().child('userB').val())"
+          }
+        }
+      }
+    }
+  }
+}
