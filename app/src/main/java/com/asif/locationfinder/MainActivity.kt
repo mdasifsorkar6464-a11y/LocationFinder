@@ -21,6 +21,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -234,27 +235,40 @@ class MainActivity : Activity() {
 
     private fun showRegister() {
         setupLayout("নতুন অ্যাকাউন্ট")
-        val email = EditText(this).apply { hint = "আপনার ইমেইল" }
+        val displayName = EditText(this).apply { hint = "আপনার নাম" }
+        val email = EditText(this).apply {
+            hint = "আপনার ইমেইল"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        }
         val password = EditText(this).apply {
             hint = "কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
+        layout.addView(displayName)
         layout.addView(email)
         layout.addView(password)
         addButton("অ্যাকাউন্ট তৈরি করুন") {
+            val name = displayName.text.toString().trim()
             val e = email.text.toString().trim()
             val p = password.text.toString()
-            if (e.isBlank() || p.length < 6) {
-                message.text = "সঠিক ইমেইল ও কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন।"
+            if (name.isBlank() || e.isBlank() || p.length < 6) {
+                message.text = "আপনার নাম, সঠিক ইমেইল ও কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন।"
                 return@addButton
             }
             auth.createUserWithEmailAndPassword(e, p)
                 .addOnSuccessListener { result ->
-                    result.user?.sendEmailVerification()
+                    val profile = UserProfileChangeRequest.Builder()
+                        .setDisplayName(name)
+                        .build()
+                    result.user?.updateProfile(profile)
                         ?.addOnSuccessListener {
-                            auth.signOut()
-                            showLogin()
-                            message.text = "আপনার ইমেইলে ভেরিফিকেশন লিংক পাঠানো হয়েছে। ইমেইল যাচাই করে লগইন করুন।"
+                            result.user?.sendEmailVerification()
+                                ?.addOnSuccessListener {
+                                    auth.signOut()
+                                    showLogin()
+                                    message.text = "আপনার ইমেইলে ভেরিফিকেশন লিংক পাঠানো হয়েছে। ইমেইল যাচাই করে লগইন করুন।"
+                                }
+                                ?.addOnFailureListener { message.text = friendlyError(it.message) }
                         }
                         ?.addOnFailureListener { message.text = friendlyError(it.message) }
                 }
