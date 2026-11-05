@@ -5,6 +5,9 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -55,31 +58,71 @@ class MainActivity : Activity() {
         showHome()
     }
 
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun roundedBackground(
+        colors: IntArray,
+        radiusDp: Int = 22,
+        strokeColor: Int? = null
+    ) = GradientDrawable(
+        GradientDrawable.Orientation.LEFT_RIGHT, colors
+    ).apply {
+        cornerRadius = dp(radiusDp).toFloat()
+        if (strokeColor != null) setStroke(dp(1), strokeColor)
+    }
+
     private fun setupLayout(titleText: String) {
         removeSessionListeners()
+        buttonStyleIndex = 0
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFFF7F8FA.toInt())
+            setPadding(dp(14), dp(18), dp(14), dp(8))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(0xFFEAF2FF.toInt(), 0xFFF5EEFF.toInt(), 0xFFE8F7FF.toInt())
+            )
         }
-        val scroll = ScrollView(this)
         layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 36, 32, 24)
+            setPadding(dp(18), dp(20), dp(18), dp(18))
+            background = roundedBackground(
+                intArrayOf(Color.WHITE, 0xFFF9FAFF.toInt()), 26, 0xFFDCE5FF.toInt()
+            )
+            elevation = dp(5).toFloat()
         }
         val title = TextView(this).apply {
             text = titleText
-            textSize = 25f
-            setTextColor(0xFF172033.toInt())
+            textSize = 24f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 22)
+            setPadding(dp(16), dp(18), dp(16), dp(18))
+            background = roundedBackground(
+                intArrayOf(0xFF1769FF.toInt(), 0xFF713BDB.toInt()), 20
+            )
+            elevation = dp(4).toFloat()
         }
-        layout.addView(title)
+        layout.addView(title, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(18) })
         message = TextView(this).apply {
-            textSize = 15f
-            setTextColor(0xFF354052.toInt())
-            setPadding(0, 0, 0, 18)
+            textSize = 15.5f
+            setTextColor(0xFF263653.toInt())
+            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+            setLineSpacing(dp(3).toFloat(), 1.08f)
+            setPadding(dp(15), dp(15), dp(15), dp(15))
+            background = roundedBackground(
+                intArrayOf(0xFFF1F5FF.toInt(), 0xFFF8F4FF.toInt()), 18, 0xFFE2E8FF.toInt()
+            )
         }
-        layout.addView(message)
+        layout.addView(message, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(18) })
+
+        val scroll = ScrollView(this).apply {
+            clipToPadding = false
+            setPadding(0, 0, 0, dp(8))
+        }
         scroll.addView(layout)
         root.addView(scroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
@@ -88,19 +131,46 @@ class MainActivity : Activity() {
             text = "Power by : MD Asif Sorkar"
             textSize = 12f
             gravity = Gravity.CENTER
-            setTextColor(0xFF687386.toInt())
-            setPadding(8, 12, 8, 16)
+            setTextColor(0xFF4935A5.toInt())
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
         }
         root.addView(footer)
         setContentView(root)
     }
 
+    private var buttonStyleIndex = 0
+
     private fun addButton(text: String, action: () -> Unit) {
-        val button = Button(this).apply { this.text = text }
+        val palettes = arrayOf(
+            intArrayOf(0xFF1769FF.toInt(), 0xFF3155D9.toInt()),
+            intArrayOf(0xFF08A88A.toInt(), 0xFF0B8FAD.toInt()),
+            intArrayOf(0xFF7540E8.toInt(), 0xFF4C43C7.toInt()),
+            intArrayOf(0xFFEC4778.toInt(), 0xFFD93662.toInt())
+        )
+        val colors = palettes[buttonStyleIndex % palettes.size]
+        buttonStyleIndex++
+        val button = Button(this).apply {
+            this.text = text
+            isAllCaps = false
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = roundedBackground(colors, 17)
+            elevation = dp(3).toFloat()
+            minHeight = dp(54)
+            stateListAnimator = null
+        }
         layout.addView(button, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = 8 })
+        ).apply {
+            bottomMargin = dp(11)
+            leftMargin = dp(2)
+            rightMargin = dp(2)
+        })
         button.setOnClickListener { action() }
     }
 
