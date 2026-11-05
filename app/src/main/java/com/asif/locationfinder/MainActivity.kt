@@ -184,6 +184,18 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun shareApp() {
+        val downloadLink = "https://github.com/mdasifsorkar6464-a11y/LocationFinder/releases/latest/download/LocationFinder.apk"
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "Location Finder অ্যাপ ডাউনলোড করুন:\n$downloadLink\n\nইনস্টল করার পর অ্যাকাউন্ট তৈরি করে আমন্ত্রণ কোড গ্রহণ করুন।"
+            )
+        }
+        startActivity(Intent.createChooser(send, "Location Finder শেয়ার করুন"))
+    }
+
     private fun showLogin() {
         setupLayout("Location Finder")
         val email = EditText(this).apply {
@@ -217,6 +229,7 @@ class MainActivity : Activity() {
         }
         addButton("নতুন অ্যাকাউন্ট তৈরি করুন") { showRegister() }
         addButton("পাসওয়ার্ড ভুলে গেছেন?") { showResetPassword() }
+        addButton("অ্যাপটি বন্ধুকে পাঠান") { shareApp() }
     }
 
     private fun showRegister() {
@@ -269,6 +282,7 @@ class MainActivity : Activity() {
         message.text = "স্বাগতম! আমন্ত্রণ তৈরি করে কাউকে যুক্ত করুন, অথবা পাওয়া আমন্ত্রণ কোড গ্রহণ করুন।\n\nকেউ আমন্ত্রণ লিংক/কোড পেলেই লোকেশন দেখা যাবে না। দুজনের আলাদা সম্মতি আবশ্যক।"
         addButton("নতুন আমন্ত্রণ তৈরি করুন") { createInvitation() }
         addButton("আমন্ত্রণ কোড গ্রহণ করুন") { showJoinInvitation() }
+        addButton("অ্যাপটি বন্ধুকে পাঠান") { shareApp() }
         addButton("লগআউট") {
             stopLocalService()
             auth.signOut()
