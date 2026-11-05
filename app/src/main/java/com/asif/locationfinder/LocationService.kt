@@ -182,9 +182,8 @@ class LocationService : Service() {
         val currentUid = uid ?: return
         val currentSession = sessionId ?: return
 
-        locationRef = database.getReference("sessions")
+        locationRef = database.getReference("locations")
             .child(currentSession)
-            .child("locations")
             .child(currentUid)
 
         val request = LocationRequest.Builder(
