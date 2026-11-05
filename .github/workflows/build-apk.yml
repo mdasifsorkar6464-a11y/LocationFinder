@@ -31,7 +31,7 @@ jobs:
           cache-disabled: true
 
       - name: Build APK
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Generate SHA fingerprints
         run: gradle :app:signingReport --no-daemon
