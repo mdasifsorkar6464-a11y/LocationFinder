@@ -7,6 +7,9 @@ on:
       - main
       - fix/build-and-consent-flow
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,8 +36,21 @@ jobs:
       - name: Generate SHA fingerprints
         run: gradle :app:signingReport --no-daemon
 
-      - name: Upload APK
+      - name: Prepare APK download file
+        run: cp app/build/outputs/apk/debug/app-debug.apk LocationFinder.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: LocationFinder-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: LocationFinder.apk
+
+      - name: Publish permanent APK download
+        if: github.ref == 'refs/heads/fix/build-and-consent-flow'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: download-latest
+          name: LocationFinder Latest APK
+          make_latest: true
+          overwrite_files: true
+          files: LocationFinder.apk
