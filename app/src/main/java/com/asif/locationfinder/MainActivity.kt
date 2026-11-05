@@ -403,7 +403,7 @@ class MainActivity : Activity() {
 
     private fun listenForOtherLocation(sessionId: String, otherUid: String) {
         locationListener?.let { database.child("locations").child(sessionId).child(otherUid).removeEventListener(it) }
-        val ref = database.child("sessions").child(sessionId).child("locations").child(otherUid)
+        val ref = database.child("locations").child(sessionId).child(otherUid)
         currentLocationRef = ref
         locationListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
