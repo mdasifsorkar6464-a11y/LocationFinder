@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>LocationFinder · Owner</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Noto Sans Bengali",sans-serif;color:#18243a;background:#f2f5fb}
+    *{box-sizing:border-box}body{margin:0;padding:24px}.wrap{max-width:1100px;margin:auto}
+    header,.panel,.stat{background:#fff;border:1px solid #e1e7f0;border-radius:18px;padding:20px;margin-bottom:16px}
+    h1{margin:0 0 6px;font-size:25px}p{color:#59677d}.muted{font-size:13px;color:#68768b}
+    input,button{font:inherit;border-radius:10px;padding:11px 13px;border:1px solid #ccd5e2}
+    input{display:block;width:100%;margin:10px 0}button{cursor:pointer;background:#2459d3;color:white;border:0}
+    button.secondary{background:#52627a}button.danger{background:#bd354b}button:disabled{opacity:.5}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+    .stat strong{display:block;font-size:28px;margin-top:6px}.hidden{display:none}
+    .tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:700px}
+    th,td{text-align:left;padding:12px;border-bottom:1px solid #e8edf4;font-size:14px}
+    th{color:#52627a;background:#f8faff}.status{font-weight:600}
+    #notice{white-space:pre-wrap;color:#9c2940}.topline{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="topline"><div><h1>LocationFinder Owner Dashboard</h1><div class="muted">শুধু অনুমোদিত Owner অ্যাকাউন্টের জন্য</div></div><button id="logout" class="secondary hidden">লগআউট</button></div></header>
+  <section id="login" class="panel">
+    <h2>Owner লগইন</h2><p>শুধু ভেরিফাই করা অনুমোদিত Gmail ব্যবহার করুন।</p>
+    <input id="email" type="email" autocomplete="username" placeholder="Owner Gmail">
+    <input id="password" type="password" autocomplete="current-password" placeholder="পাসওয়ার্ড">
+    <button id="loginBtn">নিরাপদে লগইন</button><div id="loginError" role="status"></div>
+  </section>
+  <main id="dashboard" class="hidden">
+    <section class="panel topline"><div><strong id="owner"></strong><div class="muted">Owner হিসেবে প্রবেশ করেছেন</div></div><button id="refresh" class="secondary">তথ্য রিফ্রেশ</button></section>
+    <section class="grid">
+      <div class="stat">মোট ব্যবহারকারী<strong id="usersCount">—</strong></div>
+      <div class="stat">অপেক্ষমাণ আমন্ত্রণ<strong id="invitesCount">—</strong></div>
+      <div class="stat">দুজনের সম্মতিতে সক্রিয় সেশন<strong id="sessionsCount">—</strong></div>
+    </section>
+    <section class="panel"><h2>ব্যবহারকারী তালিকা</h2><p class="muted">এখানে নাম, Gmail, অ্যাকাউন্ট অবস্থা ও সর্বশেষ লগইনের সময় দেখানো হয়। ব্যক্তিগত লাইভ লোকেশন দেখানো হয় না।</p>
+      <div class="tablewrap"><table><thead><tr><th>নাম</th><th>Gmail</th><th>ইমেইল যাচাই</th><th>অ্যাকাউন্ট</th><th>সর্বশেষ লগইন</th><th>নিয়ন্ত্রণ</th></tr></thead><tbody id="users"></tbody></table></div>
+    </section>
+    <div id="notice" role="status"></div>
+  </main>
+</div>
+<script src="/__/firebase/10.12.2/firebase-app-compat.js"></script>
+<script src="/__/firebase/10.12.2/firebase-auth-compat.js"></script>
+<script src="/__/firebase/10.12.2/firebase-functions-compat.js"></script>
+<script src="/__/firebase/init.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const auth = firebase.auth();
+  const functions = firebase.app().functions("us-central1");
+  const overview = functions.httpsCallable("getOwnerOverview");
+  const setDisabled = functions.httpsCallable("setUserDisabled");
+  const ownerEmail = "mdasifsorkar64@gmail.com";
+  const dateText = (value) => value ? new Date(value).toLocaleString("bn-BD") : "কখনো নয়";
+  const showError = (error) => { $("notice").textContent = error?.message || "সমস্যা হয়েছে"; };
+  $("loginBtn").onclick = async () => {
+    $("loginError").textContent = "";
+    try { await auth.signInWithEmailAndPassword($("email").value.trim(), $("password").value); }
+    catch (error) { $("loginError").textContent = error.message; }
+  };
+  $("logout").onclick = () => auth.signOut();
+  $("refresh").onclick = loadDashboard;
+
+  async function loadDashboard() {
+    $("notice").textContent = "তথ্য আনা হচ্ছে…";
+    try {
+      const result = await overview();
+      const data = result.data;
+      $("owner").textContent = data.ownerEmail;
+      $("usersCount").textContent = data.totalUsers;
+      $("invitesCount").textContent = data.pendingInvitations;
+      $("sessionsCount").textContent = data.activeConsentSessions;
+      const tbody = $("users");
+      tbody.replaceChildren();
+      data.users.sort((a,b) => (a.displayName || "").localeCompare(b.displayName || ""));
+      for (const user of data.users) {
+        const tr = document.createElement("tr");
+        const cells = [user.displayName, user.email, user.emailVerified ? "যাচাইকৃত" : "যাচাই হয়নি", user.disabled ? "ব্লক" : "সক্রিয়", dateText(user.lastSignInAt)];
+        for (const value of cells) { const td=document.createElement("td"); td.textContent=value; tr.appendChild(td); }
+        const actionCell=document.createElement("td");
+        if (user.email.toLowerCase() !== ownerEmail) {
+          const button=document.createElement("button");
+          button.className=user.disabled ? "secondary" : "danger";
+          button.textContent=user.disabled ? "আনব্লক" : "ব্লক";
+          button.onclick=async () => {
+            if (!confirm((user.disabled ? "এই অ্যাকাউন্ট আনব্লক" : "এই অ্যাকাউন্ট ব্লক")+" করবেন?")) return;
+            button.disabled=true;
+            try { await setDisabled({targetUid:user.uid,disabled:!user.disabled}); await loadDashboard(); }
+            catch(error) { showError(error); button.disabled=false; }
+          };
+          actionCell.appendChild(button);
+        } else { actionCell.textContent="Owner"; }
+        tr.appendChild(actionCell); tbody.appendChild(tr);
+      }
+      $("notice").textContent = "";
+    } catch(error) { showError(error); }
+  }
+
+  auth.onAuthStateChanged(async (user) => {
+    $("login").classList.toggle("hidden", !!user);
+    $("dashboard").classList.toggle("hidden", !user);
+    $("logout").classList.toggle("hidden", !user);
+    if (!user) return;
+    await user.reload();
+    if ((user.email || "").toLowerCase() !== ownerEmail || !user.emailVerified) {
+      await auth.signOut();
+      $("loginError").textContent = "এই Gmail অনুমোদিত Owner নয়, অথবা ইমেইল যাচাই করা হয়নি।";
+      return;
+    }
+    await loadDashboard();
+  });
+})();
+</script>
+</body>
+</html>
