@@ -402,7 +402,7 @@ class MainActivity : Activity() {
     }
 
     private fun listenForOtherLocation(sessionId: String, otherUid: String) {
-        locationListener?.let { database.child("sessions").child(sessionId).child("locations").child(otherUid).removeEventListener(it) }
+        locationListener?.let { database.child("locations").child(sessionId).child(otherUid).removeEventListener(it) }
         val ref = database.child("sessions").child(sessionId).child("locations").child(otherUid)
         currentLocationRef = ref
         locationListener = object : ValueEventListener {
