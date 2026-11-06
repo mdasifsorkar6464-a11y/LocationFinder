@@ -24,6 +24,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.DataSnapshot
@@ -40,6 +43,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_LOCATION = 4101
+        private const val REQUEST_DASHBOARD_LOCATION = 4102
     }
 
     private val auth by lazy { FirebaseAuth.getInstance() }
@@ -295,8 +299,12 @@ class MainActivity : Activity() {
     }
 
     private fun showDashboard() {
-        setupLayout("Location Finder")
-        message.text = "স্বাগতম! আমন্ত্রণ তৈরি করে কাউকে যুক্ত করুন, অথবা পাওয়া আমন্ত্রণ কোড গ্রহণ করুন।\n\nকেউ আমন্ত্রণ লিংক/কোড পেলেই লোকেশন দেখা যাবে না। দুজনের আলাদা সম্মতি আবশ্যক।"
+        setupLayout("আমার ড্যাশবোর্ড")
+        val user = auth.currentUser
+        val displayName = user?.displayName?.takeIf { it.isNotBlank() } ?: "নাম যোগ করা হয়নি"
+        val email = user?.email ?: "ইমেইল পাওয়া যায়নি"
+        message.text = "স্বাগতম, $displayName!\n\nআমার প্রোফাইল\nনাম: $displayName\nইমেইল: $email\nইমেইল যাচাই: ${if (user?.isEmailVerified == true) "সম্পন্ন" else "বাকি"}\n\nআমার লোকেশন: এখনো দেখা হয়নি। নিচের বোতামে চাপলে শুধু এই ফোনে আপনার বর্তমান অবস্থান দেখাবে; কাউকে পাঠাবে না।\n\nলোকেশন শেয়ারিং আপনার নিয়ন্ত্রণে থাকবে। আমন্ত্রণ পাঠানো বা গ্রহণ করা এবং প্রয়োজনীয় সম্মতি দেওয়ার আগে কোনো লোকেশন অন্য কারও সঙ্গে শেয়ার হবে না।"
+        addButton("নিজের বর্তমান অবস্থান দেখুন") { showMyLocation() }
         addButton("নতুন আমন্ত্রণ তৈরি করুন") { createInvitation() }
         addButton("আমন্ত্রণ কোড গ্রহণ করুন") { showJoinInvitation() }
         addButton("অ্যাপটি বন্ধুকে পাঠান") { shareApp() }
@@ -304,6 +312,33 @@ class MainActivity : Activity() {
             stopLocalService()
             auth.signOut()
             showLogin()
+        }
+    }
+
+    private fun showMyLocation() {
+        val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!fine && !coarse) {
+            requestPermissions(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                REQUEST_DASHBOARD_LOCATION
+            )
+            return
+        }
+        message.text = "আপনার বর্তমান অবস্থান খোঁজা হচ্ছে...\n\nএটি শুধু এই ফোনের ড্যাশবোর্ডে দেখানো হবে; Firebase-এ বা অন্য কারও কাছে পাঠানো হবে না।"
+        try {
+            LocationServices.getFusedLocationProviderClient(this)
+                .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, CancellationTokenSource().token)
+                .addOnSuccessListener { location ->
+                    if (location == null) {
+                        message.text = "এখন অবস্থান পাওয়া যায়নি। ফোনের Location চালু করে খোলা জায়গায় আবার চেষ্টা করুন।"
+                    } else {
+                        message.text = "আপনার বর্তমান অবস্থান\nঅক্ষাংশ: ${"%.6f".format(Locale.US, location.latitude)}\nদ্রাঘিমাংশ: ${"%.6f".format(Locale.US, location.longitude)}\n\nএই তথ্য শুধু এই ফোনের স্ক্রিনে দেখানো হয়েছে। কাউকে শেয়ার করা হয়নি।"
+                    }
+                }
+                .addOnFailureListener { message.text = "আপনার অবস্থান পাওয়া যায়নি: ${friendlyError(it.message)}" }
+        } catch (e: SecurityException) {
+            message.text = "লোকেশন অনুমতি পাওয়া যায়নি।"
         }
     }
 
@@ -598,6 +633,11 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_DASHBOARD_LOCATION) {
+            if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) showMyLocation()
+            else message.text = "লোকেশন অনুমতি না দিলে ড্যাশবোর্ডে আপনার অবস্থান দেখানো যাবে না।"
+            return
+        }
         if (requestCode == REQUEST_LOCATION) {
             val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
             val sessionId = pendingSessionId
