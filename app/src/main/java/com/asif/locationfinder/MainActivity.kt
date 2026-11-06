@@ -1,300 +1,324 @@
-
 package com.asif.locationfinder
 
-import android.Manifest
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.Service
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.IBinder
-import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.*
+import android.app.Activity
+import android.os.Bundle
+import android.graphics.Color
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.*
+import android.text.InputType
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.*
-import java.util.concurrent.TimeUnit
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ServerValue
+import java.util.UUID
 
-class LocationService : Service() {
+class MainActivity : Activity() {
 
-    companion object {
-        const val EXTRA_SESSION_ID = "session_id"
-        const val CHANNEL_ID = "location_sharing_channel"
-        const val NOTIFICATION_ID = 1001
-    }
+    private val auth by lazy { FirebaseAuth.getInstance() }
 
-    private lateinit var fusedClient: FusedLocationProviderClient
-    private lateinit var database: FirebaseDatabase
-    private lateinit var sessionRef: DatabaseReference
-    private lateinit var locationRef: DatabaseReference
-
-    private var sessionListener: ValueEventListener? = null
-    private var locationCallback: LocationCallback? = null
-
-    private var sessionId: String? = null
-    private var uid: String? = null
-    private var locationStarted = false
-    private var ending = false
-
-    override fun onCreate() {
-        super.onCreate()
-
-        fusedClient = LocationServices.getFusedLocationProviderClient(this)
-
-        database = FirebaseDatabase.getInstance(
+    private val database by lazy {
+        FirebaseDatabase.getInstance(
             "https://locationfinder-3df35-default-rtdb.firebaseio.com/"
-        )
-
-        createNotificationChannel()
+        ).reference
     }
 
-    override fun onStartCommand(
-        intent: Intent?,
-        flags: Int,
-        startId: Int
-    ): Int {
+    private lateinit var layout: LinearLayout
+    private lateinit var email: EditText
+    private lateinit var password: EditText
+    private lateinit var message: TextView
 
-        val id = intent?.getStringExtra(EXTRA_SESSION_ID)
-
-        if (id.isNullOrBlank()) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
-        if (sessionId == id && sessionListener != null) {
-            return START_NOT_STICKY
-        }
-
-        sessionId = id
-        uid = FirebaseAuth.getInstance().currentUser?.uid
-
-        if (uid.isNullOrBlank()) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
-        if (!hasLocationPermission()) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
-        startForeground(
-            NOTIFICATION_ID,
-            createNotification("আমন্ত্রণের সম্মতির অপেক্ষায়")
-        )
-
-        sessionRef = database.getReference("sessions").child(id)
-
-        listenForSession()
-
-        return START_NOT_STICKY
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        showHome()
     }
 
-    private fun hasLocationPermission(): Boolean {
-        val fine = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+    private fun setupLayout(titleText: String) {
+        layout = LinearLayout(this)
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(36, 50, 36, 30)
+        layout.setBackgroundColor(Color.WHITE)
 
-        val coarse = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+        val title = TextView(this)
+        title.text = titleText
+        title.textSize = 25f
+        title.setTextColor(Color.BLACK)
+        title.gravity = Gravity.CENTER
+        layout.addView(title)
 
-        return fine || coarse
+        message = TextView(this)
+        message.textSize = 15f
+        message.setTextColor(Color.DKGRAY)
+        layout.addView(message)
+
+        setContentView(layout)
     }
 
-    private fun listenForSession() {
+    private fun addButton(text: String, action: () -> Unit) {
+        val button = Button(this)
+        button.text = text
+        layout.addView(button)
+        button.setOnClickListener { action() }
+    }
 
-        sessionListener = object : ValueEventListener {
+    private fun showHome() {
+        val user = auth.currentUser
 
-            override fun onDataChange(snapshot: DataSnapshot) {
+        if (user != null && user.isEmailVerified) {
+            showDashboard()
+        } else {
+            if (user != null) auth.signOut()
+            showLogin()
+        }
+    }
 
-                if (ending) return
+    private fun showLogin() {
+        setupLayout("Location Finder")
 
-                val currentUid = uid ?: return
+        email = EditText(this)
+        email.hint = "ইমেইল ঠিকানা"
+        email.inputType = InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        layout.addView(email)
 
-                if (!snapshot.exists()) {
-                    endService()
-                    return
-                }
+        password = EditText(this)
+        password.hint = "পাসওয়ার্ড"
+        password.inputType =
+            InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_VARIATION_PASSWORD
+        layout.addView(password)
 
-                val userA = snapshot.child("userA")
-                    .getValue(String::class.java)
+        addButton("লগইন করুন") { loginUser() }
+        addButton("নতুন অ্যাকাউন্ট তৈরি করুন") { showRegister() }
+        addButton("পাসওয়ার্ড ভুলে গেছেন?") { resetPassword() }
+    }
 
-                val userB = snapshot.child("userB")
-                    .getValue(String::class.java)
+    private fun showRegister() {
+        setupLayout("নতুন অ্যাকাউন্ট")
 
-                val consentA = snapshot.child("consentA")
-                    .getValue(Boolean::class.java) ?: false
+        email = EditText(this)
+        email.hint = "আপনার ইমেইল"
+        layout.addView(email)
 
-                val consentB = snapshot.child("consentB")
-                    .getValue(Boolean::class.java) ?: false
+        password = EditText(this)
+        password.hint = "কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
+        password.inputType =
+            InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_VARIATION_PASSWORD
+        layout.addView(password)
 
-                val active = snapshot.child("active")
-                    .getValue(Boolean::class.java) ?: false
+        addButton("অ্যাকাউন্ট তৈরি করুন") {
+            val e = email.text.toString().trim()
+            val p = password.text.toString()
 
-                val stopped = snapshot.child("stopped")
-                    .getValue(Boolean::class.java) ?: false
-
-                val isMember = currentUid == userA ||
-                        currentUid == userB
-
-                if (!isMember || stopped) {
-                    endService()
-                    return
-                }
-
-                val bothConsented =
-                    !userA.isNullOrBlank() &&
-                    !userB.isNullOrBlank() &&
-                    consentA &&
-                    consentB
-
-                if (active && bothConsented) {
-                    startLocationUpdates()
-                    updateNotification("আপনার লোকেশন শেয়ার হচ্ছে")
-                } else {
-                    stopLocationUpdates()
-                    updateNotification("অন্য ব্যক্তির সম্মতির অপেক্ষায়")
-                }
+            if (e.isBlank() || p.length < 6) {
+                message.text = "সঠিক ইমেইল ও কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন।"
+                return@addButton
             }
 
-            override fun onCancelled(error: DatabaseError) {
-                endService()
-            }
+            auth.createUserWithEmailAndPassword(e, p)
+                .addOnSuccessListener { result ->
+                    result.user?.sendEmailVerification()
+                        ?.addOnSuccessListener {
+                            auth.signOut()
+                            showLogin()
+                            message.text =
+                                "আপনার ইমেইলে ভেরিফিকেশন লিংক পাঠানো হয়েছে।"
+                        }
+                        ?.addOnFailureListener {
+                            message.text = it.message
+                        }
+                }
+                .addOnFailureListener {
+                    message.text = it.message
+                }
         }
 
-        sessionRef.addValueEventListener(sessionListener!!)
+        addButton("ফিরে যান") { showLogin() }
     }
 
-    private fun startLocationUpdates() {
+    private fun loginUser() {
+        val e = email.text.toString().trim()
+        val p = password.text.toString()
 
-        if (locationStarted || ending) return
+        auth.signInWithEmailAndPassword(e, p)
+            .addOnSuccessListener { result ->
+                val user = result.user
 
-        if (!hasLocationPermission()) {
-            endService()
-            return
+                user?.reload()?.addOnSuccessListener {
+                    if (user.isEmailVerified) {
+                        showDashboard()
+                    } else {
+                        auth.signOut()
+                        showLogin()
+                        message.text =
+                            "আগে ইমেইল ভেরিফিকেশন সম্পন্ন করুন।"
+                    }
+                }
+            }
+            .addOnFailureListener {
+                message.text = it.message
+            }
+    }
+
+    private fun resetPassword() {
+        setupLayout("পাসওয়ার্ড রিসেট")
+
+        email = EditText(this)
+        email.hint = "আপনার ইমেইল"
+        layout.addView(email)
+
+        addButton("রিসেট লিংক পাঠান") {
+            val e = email.text.toString().trim()
+
+            if (e.isBlank()) {
+                message.text = "ইমেইল লিখুন।"
+                return@addButton
+            }
+
+            auth.sendPasswordResetEmail(e)
+                .addOnSuccessListener {
+                    message.text =
+                        "পাসওয়ার্ড রিসেট লিংক ইমেইলে পাঠানো হয়েছে।"
+                }
+                .addOnFailureListener {
+                    message.text = it.message
+                }
         }
 
-        val currentUid = uid ?: return
-        val currentSession = sessionId ?: return
+        addButton("ফিরে যান") { showLogin() }
+    }
 
-        locationRef = database.getReference("sessions")
-            .child(currentSession)
-            .child("locations")
-            .child(currentUid)
+    private fun showDashboard() {
+        setupLayout("Location Finder")
 
-        val request = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY,
-            TimeUnit.SECONDS.toMillis(10)
+        message.text =
+            "আপনি লগইন করেছেন।\n" +
+            "লোকেশন শেয়ারিংয়ের জন্য আমন্ত্রণ তৈরি করুন।"
+
+        addButton("আমন্ত্রণ কোড তৈরি করুন") {
+            createInvitation()
+        }
+
+        addButton("আমন্ত্রণ কোড গ্রহণ করুন") {
+            showJoinInvitation()
+        }
+
+        addButton("লগআউট") {
+            auth.signOut()
+            showLogin()
+        }
+    }
+
+    private fun createInvitation() {
+        val user = auth.currentUser ?: return
+
+        val sessionId = UUID.randomUUID().toString()
+        val inviteCode = UUID.randomUUID()
+            .toString()
+            .replace("-", "")
+            .take(12)
+            .uppercase()
+
+        val session = mapOf(
+            "userA" to user.uid,
+            "userB" to "",
+            "consentA" to true,
+            "consentB" to false,
+            "active" to false,
+            "stopped" to false,
+            "createdAt" to ServerValue.TIMESTAMP
         )
-            .setMinUpdateIntervalMillis(
-                TimeUnit.SECONDS.toMillis(5)
+
+        val invite = mapOf(
+            "sessionId" to sessionId,
+            "createdBy" to user.uid,
+            "createdAt" to ServerValue.TIMESTAMP,
+            "status" to "pending"
+        )
+
+        val updates = hashMapOf<String, Any>(
+            "sessions/$sessionId" to session,
+            "invites/$inviteCode" to invite
+        )
+
+        database.updateChildren(updates)
+            .addOnSuccessListener {
+                showInvitationCreated(inviteCode)
+            }
+            .addOnFailureListener {
+                message.text = "সমস্যা: ${it.message}"
+            }
+    }
+
+    private fun showInvitationCreated(inviteCode: String) {
+        setupLayout("আমন্ত্রণ তৈরি হয়েছে")
+
+        val info = TextView(this)
+        info.text =
+            "আমন্ত্রণ কোড:\n" +
+            "এই কোডটি যাকে লোকেশন শেয়ার করতে চান তাকে দিন।\n" +
+            "তার স্পষ্ট সম্মতি ছাড়া লোকেশন শেয়ার হবে না।"
+        info.textSize = 16f
+        info.setTextColor(Color.DKGRAY)
+        layout.addView(info)
+
+        val codeRow = LinearLayout(this)
+        codeRow.orientation = LinearLayout.HORIZONTAL
+        codeRow.gravity = Gravity.CENTER_VERTICAL
+        codeRow.setPadding(0, 20, 0, 20)
+
+        val codeText = TextView(this)
+        codeText.text = inviteCode
+        codeText.textSize = 20f
+        codeText.setTextColor(Color.BLACK)
+        codeText.setPadding(12, 12, 12, 12)
+        codeText.setBackgroundColor(Color.LTGRAY)
+
+        val codeParams = LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+        codeRow.addView(codeText, codeParams)
+
+        val copyButton = Button(this)
+        copyButton.text = "কোড কপি"
+        copyButton.setOnClickListener {
+            val clipboard =
+                getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(
+                ClipData.newPlainText("Location Finder invitation code", inviteCode)
             )
-            .build()
-
-        locationCallback = object : LocationCallback() {
-
-            override fun onLocationResult(result: LocationResult) {
-
-                if (ending) return
-
-                val location = result.lastLocation ?: return
-
-                val data = mapOf(
-                    "latitude" to location.latitude,
-                    "longitude" to location.longitude,
-                    "updatedAt" to ServerValue.TIMESTAMP
-                )
-
-                locationRef.setValue(data)
-            }
+            Toast.makeText(this, "কোড কপি হয়েছে!", Toast.LENGTH_SHORT).show()
         }
 
-        try {
-            fusedClient.requestLocationUpdates(
-                request,
-                locationCallback!!,
-                mainLooper
-            ).addOnFailureListener {
-                endService()
-            }
+        val buttonParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        buttonParams.marginStart = 12
+        codeRow.addView(copyButton, buttonParams)
 
-            locationStarted = true
+        layout.addView(codeRow)
 
-        } catch (e: SecurityException) {
-            endService()
-        }
+        addButton("ড্যাশবোর্ডে ফিরে যান") { showDashboard() }
     }
 
-    private fun stopLocationUpdates() {
+    private fun showJoinInvitation() {
+        setupLayout("আমন্ত্রণ গ্রহণ")
 
-        locationCallback?.let {
-            fusedClient.removeLocationUpdates(it)
-        }
+        val code = EditText(this)
+        code.hint = "আমন্ত্রণ কোড লিখুন"
+        code.inputType = InputType.TYPE_CLASS_TEXT
+        layout.addView(code)
 
-        locationCallback = null
-        locationStarted = false
-    }
-
-    private fun endService() {
-
-        if (ending) return
-
-        ending = true
-        stopLocationUpdates()
-
-        if (::sessionRef.isInitialized && sessionListener != null) {
-            sessionRef.removeEventListener(sessionListener!!)
-            sessionListener = null
+        addButton("কোড যাচাই করুন") {
+            message.text =
+                "আমন্ত্রণ গ্রহণের নিরাপদ ব্যবস্থা পরবর্তী ধাপে যুক্ত করা হবে।"
         }
 
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        addButton("ফিরে যান") { showDashboard() }
     }
-
-    private fun createNotificationChannel() {
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Location Sharing",
-                NotificationManager.IMPORTANCE_LOW
-            )
-
-            getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(channel)
-        }
-    }
-
-    private fun createNotification(status: String): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Location Finder")
-            .setContentText(status)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setOngoing(true)
-            .build()
-    }
-
-    private fun updateNotification(status: String) {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, createNotification(status))
-    }
-
-    override fun onDestroy() {
-        ending = true
-        stopLocationUpdates()
-
-        if (::sessionRef.isInitialized && sessionListener != null) {
-            sessionRef.removeEventListener(sessionListener!!)
-        }
-
-        super.onDestroy()
-    }
-
-    override fun onBind(intent: Intent?): IBinder? = null
 }
