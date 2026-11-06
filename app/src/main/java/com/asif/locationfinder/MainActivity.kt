@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.ClipboardManager
+import android.content.ClipData
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -19,6 +21,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
@@ -336,7 +339,34 @@ class MainActivity : Activity() {
 
     private fun showCreatedInvitation(sessionId: String, code: String) {
         setupLayout("আমন্ত্রণ তৈরি হয়েছে")
-        message.text = "আমন্ত্রণ কোড:\n$code\n\nএই কোডটি নির্দিষ্ট ব্যক্তিকে পাঠান। কোড পাওয়া মানেই লোকেশন শেয়ার শুরু নয়। আপনি নিজে সম্মতি না দেওয়া এবং অপর ব্যক্তি কোড গ্রহণ করে সম্মতি না দেওয়া পর্যন্ত লোকেশন বন্ধ থাকবে।"
+        message.text = "আমন্ত্রণ কোডটি কপি করে নির্দিষ্ট ব্যক্তিকে পাঠান। কোড পাওয়া মানেই লোকেশন শেয়ার শুরু নয়। আপনি নিজে সম্মতি না দেওয়া এবং অপর ব্যক্তি কোড গ্রহণ করে সম্মতি না দেওয়া পর্যন্ত লোকেশন বন্ধ থাকবে।"
+        val codeRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(8), dp(6), dp(8))
+            background = roundedBackground(intArrayOf(0xFFEAF0FF.toInt(), 0xFFF3EEFF.toInt()), 14, 0xFFDCE5FF.toInt())
+        }
+        val codeText = TextView(this).apply {
+            text = code
+            textSize = 19f
+            setTextColor(0xFF172B55.toInt())
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        codeRow.addView(codeText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val copyButton = Button(this).apply {
+            text = "কোড কপি"
+            isAllCaps = false
+            setOnClickListener {
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Location Finder invitation code", code))
+                Toast.makeText(this@MainActivity, "কোড কপি হয়েছে!", Toast.LENGTH_SHORT).show()
+            }
+        }
+        codeRow.addView(copyButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        layout.addView(codeRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = dp(14)
+        })
         addButton("কোডটি শেয়ার করুন") {
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
