@@ -115,10 +115,10 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { bottomMargin = dp(18) })
         message = TextView(this).apply {
-            textSize = 15.5f
+            textSize = 16f
             setTextColor(0xFF263653.toInt())
             typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-            setLineSpacing(dp(3).toFloat(), 1.08f)
+            setLineSpacing(dp(4).toFloat(), 1.1f)
             setPadding(dp(15), dp(15), dp(15), dp(15))
             background = roundedBackground(
                 intArrayOf(0xFFF1F5FF.toInt(), 0xFFF8F4FF.toInt()), 18, 0xFFE2E8FF.toInt()
@@ -183,6 +183,25 @@ class MainActivity : Activity() {
         button.setOnClickListener { action() }
     }
 
+
+    private fun addInput(field: EditText) {
+        field.textSize = 16f
+        field.setTextColor(0xFF263653.toInt())
+        field.setHintTextColor(0xFF7D89A5.toInt())
+        field.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        field.setPadding(dp(16), dp(14), dp(16), dp(14))
+        field.background = roundedBackground(
+            intArrayOf(0xFFF7F9FF.toInt(), 0xFFFFFFFF.toInt()),
+            14,
+            0xFFD7E1F5.toInt()
+        )
+        field.elevation = dp(1).toFloat()
+        layout.addView(field, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(12) })
+    }
+
     private fun showHome() {
         val user = auth.currentUser
         if (user != null && user.isEmailVerified) {
@@ -215,8 +234,8 @@ class MainActivity : Activity() {
             hint = "পাসওয়ার্ড"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        layout.addView(email)
-        layout.addView(password)
+        addInput(email)
+        addInput(password)
         addButton("লগইন করুন") {
             val e = email.text.toString().trim()
             val p = password.text.toString()
@@ -252,9 +271,9 @@ class MainActivity : Activity() {
             hint = "কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        layout.addView(displayName)
-        layout.addView(email)
-        layout.addView(password)
+        addInput(displayName)
+        addInput(email)
+        addInput(password)
         addButton("অ্যাকাউন্ট তৈরি করুন") {
             val name = displayName.text.toString().trim()
             val e = email.text.toString().trim()
@@ -288,7 +307,7 @@ class MainActivity : Activity() {
     private fun showResetPassword() {
         setupLayout("পাসওয়ার্ড রিসেট")
         val email = EditText(this).apply { hint = "আপনার ইমেইল" }
-        layout.addView(email)
+        addInput(email)
         addButton("রিসেট লিংক পাঠান") {
             val e = email.text.toString().trim()
             if (e.isBlank()) message.text = "ইমেইল লিখুন।"
@@ -459,7 +478,7 @@ class MainActivity : Activity() {
             hint = "১২ অক্ষরের আমন্ত্রণ কোড"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
         }
-        layout.addView(codeInput)
+        addInput(codeInput)
         addButton("কোড যাচাই করুন") {
             val code = codeInput.text.toString().trim().uppercase(Locale.ROOT)
             if (code.length != 12) {
