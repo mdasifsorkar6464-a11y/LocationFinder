@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.ClipboardManager
 import android.content.ClipData
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -333,7 +334,38 @@ class MainActivity : Activity() {
                     if (location == null) {
                         message.text = "এখন অবস্থান পাওয়া যায়নি। ফোনের Location চালু করে খোলা জায়গায় আবার চেষ্টা করুন।"
                     } else {
-                        message.text = "আপনার বর্তমান অবস্থান\nঅক্ষাংশ: ${"%.6f".format(Locale.US, location.latitude)}\nদ্রাঘিমাংশ: ${"%.6f".format(Locale.US, location.longitude)}\n\nএই তথ্য শুধু এই ফোনের স্ক্রিনে দেখানো হয়েছে। কাউকে শেয়ার করা হয়নি।"
+                        message.text = "আপনার অবস্থান থেকে এলাকার নাম খোঁজা হচ্ছে...\n\nএই তথ্য শুধু এই ফোনের স্ক্রিনে দেখানো হবে। কাউকে শেয়ার করা হবে না।"
+                        Thread {
+                            try {
+                                if (!Geocoder.isPresent()) {
+                                    runOnUiThread {
+                                        message.text = "আপনার অবস্থানের এলাকার নাম শনাক্ত করা যায়নি। পরে আবার চেষ্টা করুন।\n\nআপনার অবস্থান কাউকে শেয়ার করা হয়নি।"
+                                    }
+                                    return@Thread
+                                }
+                                @Suppress("DEPRECATION")
+                                val addresses = Geocoder(this, Locale("bn", "BD"))
+                                    .getFromLocation(location.latitude, location.longitude, 1)
+                                val address = addresses?.firstOrNull()
+                                val area = address?.subLocality?.takeIf { it.isNotBlank() }
+                                    ?: address?.locality?.takeIf { it.isNotBlank() }
+                                    ?: address?.featureName?.takeIf { it.isNotBlank() }
+                                val upazila = address?.subAdminArea?.takeIf { it.isNotBlank() }
+                                val district = address?.adminArea?.takeIf { it.isNotBlank() }
+                                val result = if (area == null && upazila == null && district == null) {
+                                    "আপনার এলাকার নাম শনাক্ত করা যায়নি। ফোনের ইন্টারনেট চালু রেখে আবার চেষ্টা করুন।"
+                                } else {
+                                    "আপনার বর্তমান অবস্থান\nএলাকা/গ্রাম: ${area ?: "শনাক্ত হয়নি"}\nউপজেলা: ${upazila ?: "শনাক্ত হয়নি"}\nজেলা: ${district ?: "শনাক্ত হয়নি"}"
+                                }
+                                runOnUiThread {
+                                    message.text = "$result\n\nএখানে শুধু এলাকার নাম দেখানো হচ্ছে; অক্ষাংশ-দ্রাঘিমাংশ দেখানো হচ্ছে না। এই তথ্য শুধু এই ফোনে দেখানো হয়েছে, কাউকে শেয়ার করা হয়নি।"
+                                }
+                            } catch (e: Exception) {
+                                runOnUiThread {
+                                    message.text = "এলাকার নাম পাওয়া যায়নি। ইন্টারনেট সংযোগ চালু রেখে আবার চেষ্টা করুন।\n\nআপনার অবস্থান কাউকে শেয়ার করা হয়নি।"
+                                }
+                            }
+                        }.start()
                     }
                 }
                 .addOnFailureListener { message.text = "আপনার অবস্থান পাওয়া যায়নি: ${friendlyError(it.message)}" }
